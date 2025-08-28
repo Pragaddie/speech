@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RSVP Voice Reader</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#121922; --text:#e8f0ff; --muted:#9fb3c8; --acc:#5aa0ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;
+      color:var(--text); background:linear-gradient(180deg,#0b0f14,#0a1018 30%, #0b0f14);
+      display:flex; flex-direction:column; align-items:center; gap:16px; padding:20px;
+    }
+    header{max-width:900px; width:100%}
+    h1{font-weight:700; letter-spacing:.3px; margin:0 0 6px}
+    p.caption{margin:0 0 14px; color:var(--muted)}
+    .card{
+      width:100%; max-width:900px; background:var(--card); border:1px solid rgba(255,255,255,.06); border-radius:16px;
+      padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25)
+    }
+    .row{display:flex; gap:12px; flex-wrap:wrap}
+
+    textarea{
+      width:100%; min-height:120px; resize:vertical; background:#0c141e; color:var(--text); border:1px solid #223043; border-radius:12px; padding:12px; line-height:1.4;
+    }
+    input[type="text"]{width:100%; background:#0c141e; color:var(--text); border:1px solid #223043; border-radius:12px; padding:12px}
+
+    button{
+      appearance:none; border:none; padding:12px 16px; border-radius:12px; cursor:pointer; font-weight:600;
+      background:var(--acc); color:#06101c; transition:.2s transform, .2s filter;
+    }
+    button.secondary{background:#1c2736; color:var(--text); border:1px solid #223043}
+    button.ghost{background:transparent; color:var(--muted)}
+    button:active{transform:translateY(1px)}
+    button[disabled]{opacity:.6; cursor:not-allowed}
+
+    .display{
+      height:38vh; min-height:260px; display:grid; place-items:center; border-radius:18px; background:radial-gradient(ellipse at center, #121b27 0%, #0d141d 65%);
+      border:1px solid rgba(255,255,255,.06); position:relative; overflow:hidden; margin-top:6px
+    }
+    .word{font-size: clamp(42px, 11vw, 120px); font-weight:800; letter-spacing:.5px; text-align:center}
+    .focus{color:var(--acc)}
+    .subtle{position:absolute; bottom:10px; left:12px; right:12px; color:var(--muted); font-size:13px; display:flex; justify-content:space-between; align-items:center}
+    .dot{width:10px; height:10px; border-radius:999px; background:#8a93a3; display:inline-block; margin-right:8px}
+    .dot.live{background:#23d18b; box-shadow:0 0 0 6px rgba(35,209,139,.15)}
+
+    .progress{height:6px; width:100%; background:#0e1823; border-radius:999px; overflow:hidden; border:1px solid #223043}
+    .progress > span{display:block; height:100%; width:0%; background:linear-gradient(90deg, #3a79ff, #2ee7ff)}
+
+    .controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    label.switch{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--muted)}
+    .pill{padding:6px 10px; border-radius:999px; background:#0f1a27; border:1px solid #223043; color:var(--muted); font-size:12px}
+    kbd{background:#0c1520; border:1px solid #223043; padding:2px 6px; border-radius:6px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:#a8c0ff}
+
+    footer{opacity:.75; font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>RSVP Voice Reader</h1>
+    <p class="caption">Type or paste any text. Click <strong>Go</strong>. The mic listens while the screen shows the <em>next word to read</em> centered — no eye skimming. When you say the word, it advances automatically. You can also press <kbd>Space</kbd> or <kbd>Right Arrow</kbd>.</p>
+  </header>
+
+  <section class="card">
+    <div class="row" style="align-items:flex-start">
+      <textarea id="textInput" placeholder="Paste your text here...">I am who I am. This is a demo of a rapid serial visual presentation reader that advances when you speak the word on screen. Try it out!</textarea>
+    </div>
+
+    <div class="controls" style="margin-top:12px">
+      <button id="goBtn">Go</button>
+      <button id="stopBtn" class="secondary" disabled>Stop</button>
+      <span id="micState" class="pill"><span class="dot" id="micDot"></span>Mic idle</span>
+      <label class="switch"><input type="checkbox" id="autoAdvance" checked /> Voice advance</label>
+      <label class="switch"><input type="checkbox" id="strictMatch" /> Strict match</label>
+      <span class="pill">Tips: press <kbd>Space</kbd>/<kbd>→</kbd> to advance • <kbd>←</kbd> to go back</span>
+    </div>
+
+    <div class="display" id="display">
+      <div id="word" class="word">Ready?</div>
+      <div class="subtle">
+        <div><span id="liveDot" class="dot"></span><span id="status">Not started</span></div>
+        <div class="progress"><span id="bar"></span></div>
+      </div>
+    </div>
+
+    <div class="controls" style="margin-top:12px">
+      <label class="switch">WPM: <input type="text" id="wpm" value="0" style="width:72px; margin-left:6px" /> <span class="pill">0 = manual/voice</span></label>
+      <label class="switch">Case/Punct normalize <input type="checkbox" id="normalize" checked /></label>
+    </div>
+  </section>
+
+  <footer>Built for you — single-file, no libraries. Works best in Chromium-based browsers with the Web Speech API.</footer>
+
+<script>
+(function(){
+  // --- Utilities ---
+  const el = id => document.getElementById(id);
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  const stripPunct = s => s.replace(/[\p{P}\p{S}]/gu, "");
+  const normalizeWord = (w, doNorm=true) => {
+    if(!doNorm) return w.trim();
+    return stripPunct(w).replace(/\s+/g,'').toLowerCase();
+  };
+
+  // Optimal recognition point (ORP) highlighting: split word into left/focus/right
+  function renderWord(target){
+    if(!target){ el('word').textContent = ""; return; }
+    const w = String(target);
+    const idx = Math.max(0, Math.min(w.length-1, Math.floor(w.length*0.43)));
+    const left = w.slice(0, idx);
+    const focus = w.slice(idx, idx+1);
+    const right = w.slice(idx+1);
+    el('word').innerHTML = `${escapeHtml(left)}<span class="focus">${escapeHtml(focus)}</span>${escapeHtml(right)}`;
+  }
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+  }
+
+  // --- State ---
+  let tokens = [];
+  let i = 0;
+  let running = false;
+  let auto = true; // voice advance
+  let strict = false;
+  let recog; // SpeechRecognition instance
+  let wpmTimer;
+
+  // --- Tokenize input into words (keep punctuation for display) ---
+  function tokenize(text){
+    // Split on whitespace but keep punctuation attached to words; treat em dashes, ellipses as separate ticks
+    const raw = text.match(/\S+|\n/g) || [];
+    // Filter out pure newlines as separators but convert to pauses (we'll duplicate word display duration)
+    const out = [];
+    for(const part of raw){
+      if(part === "\n"){ out.push("\n"); continue; }
+      // Split words that contain em-dash/ellipsis so they are their own flashes
+      let p = String(part)
+        .replace(/(—|–)/g, ' $1 ') // surround dashes
+        .replace(/(\.{3,})/g, ' $1 ')
+        .trim()
+        .split(/\s+/);
+      out.push(...p);
+    }
+    // Remove empties
+    return out.filter(Boolean);
+  }
+
+  function show(idx){
+    if(idx < 0 || idx >= tokens.length){ return; }
+    const t = tokens[idx] === "\n" ? "" : tokens[idx];
+    renderWord(t);
+    updateBar();
+  }
+
+  function updateBar(){
+    const pct = tokens.length ? Math.min(100, (i / tokens.length) * 100) : 0;
+    el('bar').style.width = pct + '%';
+  }
+
+  async function start(){
+    const text = el('textInput').value.trim();
+    if(!text){ alert('Please enter some text first.'); return; }
+    tokens = tokenize(text);
+    i = 0; running = true; auto = el('autoAdvance').checked; strict = el('strictMatch').checked;
+    el('goBtn').disabled = true; el('stopBtn').disabled = false;
+    el('status').textContent = 'Listening for your words...';
+    el('liveDot').classList.add('live');
+    el('micState').innerHTML = `<span class="dot live"></span>Mic starting...`;
+
+    show(i);
+    if(Number(el('wpm').value) > 0){ startWpmLoop(); }
+    if(auto){ await startMic(); }
+  }
+
+  function stop(){
+    running = false; tokens = []; i = 0; renderWord('Ready?'); updateBar();
+    el('goBtn').disabled = false; el('stopBtn').disabled = true;
+    el('status').textContent = 'Stopped';
+    el('liveDot').classList.remove('live');
+    el('micState').innerHTML = `<span class="dot"></span>Mic idle`;
+    stopMic(); stopWpmLoop();
+  }
+
+  // --- Manual controls ---
+  function next(){ if(!running) return; if(i < tokens.length-1){ i++; show(i); maybePauseOnToken(); } }
+  function prev(){ if(!running) return; if(i > 0){ i--; show(i); } }
+
+  // Slight extra hold on punctuation/newline
+  function maybePauseOnToken(){
+    const t = tokens[i];
+    if(/[.!?]$/.test(t) || t === "\n"){ // add a tiny breathing room in WPM loop
+      _extraHoldUntil = Date.now() + 180; // ms
+    }
+  }
+  let _extraHoldUntil = 0;
+
+  // --- WPM auto-advance (optional) ---
+  function startWpmLoop(){
+    stopWpmLoop();
+    const wpm = Math.max(0, Number(el('wpm').value)||0);
+    if(!wpm) return; // disabled
+    const interval = Math.round(60000 / wpm);
+    wpmTimer = setInterval(()=>{
+      if(!running) return;
+      if(Date.now() < _extraHoldUntil) return;
+      next();
+      if(i >= tokens.length-1){ stopWpmLoop(); }
+    }, interval);
+  }
+  function stopWpmLoop(){ if(wpmTimer){ clearInterval(wpmTimer); wpmTimer = null; } }
+
+  // --- Speech Recognition ---
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const hasSR = !!SR;
+  if(!hasSR){ el('micState').innerHTML = '<span class="dot"></span>Speech API unavailable'; }
+
+  async function startMic(){
+    if(!hasSR) return;
+    stopMic();
+    recog = new SR();
+    recog.lang = 'en-US';
+    recog.continuous = true; // keep streaming
+    recog.interimResults = true;
+
+    recog.onstart = ()=>{ el('micState').innerHTML = '<span class="dot live"></span>Mic listening'; };
+    recog.onerror = (e)=>{ el('status').textContent = 'Mic error: '+ e.error; };
+    recog.onend = ()=>{
+      if(running && auto){ // try to recover if user didn't press Stop
+        // Small delay to avoid rapid restart on permission changes
+        setTimeout(()=>{ try{ recog.start(); }catch{} }, 350);
+      } else {
+        el('micState').innerHTML = '<span class="dot"></span>Mic idle';
+      }
+    };
+
+    recog.onresult = (evt)=>{
+      if(!running) return;
+      const res = evt.results;
+      const last = res[res.length-1];
+      const transcript = last[0].transcript.trim();
+      // We'll look for the current token within the transcript (normalized) or the last word spoken
+      const current = tokens[i] || '';
+      const normCurrent = normalizeWord(current, el('normalize').checked);
+
+      const words = transcript.split(/\s+/).map(w=>normalizeWord(w, el('normalize').checked)).filter(Boolean);
+      const lastSpoken = words[words.length-1] || '';
+      const heardHasCurrent = words.includes(normCurrent);
+
+      const ok = strict ? (lastSpoken === normCurrent) : (heardHasCurrent || lastSpoken===normCurrent || lastSpoken.startsWith(normCurrent.slice(0, Math.max(2, Math.min(4, normCurrent.length))))) ;
+
+      if(ok){
+        next();
+      }
+    };
+
+    try{
+      recog.start();
+    }catch(err){
+      el('status').textContent = 'Could not start mic: ' + err.message;
+    }
+  }
+  function stopMic(){ try{ if(recog){ recog.onend = null; recog.stop(); } }catch{} }
+
+  // --- Wire up UI ---
+  el('goBtn').addEventListener('click', start);
+  el('stopBtn').addEventListener('click', stop);
+  el('autoAdvance').addEventListener('change', (e)=>{ auto = e.target.checked; if(auto && running) startMic(); else stopMic(); });
+  el('strictMatch').addEventListener('change', (e)=>{ strict = e.target.checked; });
+  el('wpm').addEventListener('change', ()=>{ if(running) startWpmLoop(); });
+
+  document.addEventListener('keydown', (e)=>{
+    if(!running) return;
+    if(e.code === 'Space' || e.key === ' ' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
+    if(e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+  });
+
+  // Initialize display
+  renderWord('Ready?');
+})();
+</script>
+</body>
+</html>
