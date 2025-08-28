@@ -3,184 +3,228 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RSVP Voice Reader</title>
+  <title>RSVP Train — Scroll Reader</title>
   <style>
     :root{
-      --bg:#0b0f14; --card:#121922; --text:#e8f0ff; --muted:#9fb3c8; --acc:#5aa0ff;
+      --bg:#0b0f14; --card:#111922; --text:#e8f0ff; --muted:#9fb3c8; --acc:#5aa0ff; --rail:#0f1621;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;
-      color:var(--text); background:linear-gradient(180deg,#0b0f14,#0a1018 30%, #0b0f14);
-      display:flex; flex-direction:column; align-items:center; gap:16px; padding:20px;
-    }
-    header{max-width:900px; width:100%}
-    h1{font-weight:700; letter-spacing:.3px; margin:0 0 6px}
-    p.caption{margin:0 0 14px; color:var(--muted)}
-    .card{
-      width:100%; max-width:900px; background:var(--card); border:1px solid rgba(255,255,255,.06); border-radius:16px;
-      padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25)
-    }
-    .row{display:flex; gap:12px; flex-wrap:wrap}
-
-    textarea{
-      width:100%; min-height:120px; resize:vertical; background:#0c141e; color:var(--text); border:1px solid #223043; border-radius:12px; padding:12px; line-height:1.4;
-    }
-    input[type="text"]{width:100%; background:#0c141e; color:var(--text); border:1px solid #223043; border-radius:12px; padding:12px}
-
-    button{
-      appearance:none; border:none; padding:12px 16px; border-radius:12px; cursor:pointer; font-weight:600;
-      background:var(--acc); color:#06101c; transition:.2s transform, .2s filter;
-    }
+    body{margin:0; font-family:system-ui, Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:var(--text); background:linear-gradient(180deg,#0b0f14,#0a1018 35%,#0b0f14); display:flex; flex-direction:column; align-items:center; gap:16px; padding:20px}
+    header, .card{width:100%; max-width:1000px}
+    h1{margin:0 0 6px}
+    p.caption{margin:0; color:var(--muted)}
+    .card{background:var(--card); border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    textarea{width:100%; min-height:120px; resize:vertical; background:#0c141e; color:var(--text); border:1px solid #223043; border-radius:12px; padding:12px; line-height:1.4}
+    .controls{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:12px}
+    button{appearance:none; border:none; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600; background:var(--acc); color:#06101c}
     button.secondary{background:#1c2736; color:var(--text); border:1px solid #223043}
-    button.ghost{background:transparent; color:var(--muted)}
-    button:active{transform:translateY(1px)}
-    button[disabled]{opacity:.6; cursor:not-allowed}
-
-    .display{
-      height:38vh; min-height:260px; display:grid; place-items:center; border-radius:18px; background:radial-gradient(ellipse at center, #121b27 0%, #0d141d 65%);
-      border:1px solid rgba(255,255,255,.06); position:relative; overflow:hidden; margin-top:6px
-    }
-    .word{font-size: clamp(42px, 11vw, 120px); font-weight:800; letter-spacing:.5px; text-align:center}
-    .focus{color:var(--acc)}
-    .nextWord{font-size: clamp(18px, 3vw, 28px); color:var(--muted); margin-top:10px; text-align:center}
-    .subtle{position:absolute; bottom:10px; left:12px; right:12px; color:var(--muted); font-size:13px; display:flex; justify-content:space-between; align-items:center}
-    .dot{width:10px; height:10px; border-radius:999px; background:#8a93a3; display:inline-block; margin-right:8px}
-    .dot.live{background:#23d18b; box-shadow:0 0 0 6px rgba(35,209,139,.15)}
-
-    .progress{height:6px; width:100%; background:#0e1823; border-radius:999px; overflow:hidden; border:1px solid #223043}
-    .progress > span{display:block; height:100%; width:0%; background:linear-gradient(90deg, #3a79ff, #2ee7ff)}
-
-    .controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    label.switch{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--muted)}
     .pill{padding:6px 10px; border-radius:999px; background:#0f1a27; border:1px solid #223043; color:var(--muted); font-size:12px}
-    kbd{background:#0c1520; border:1px solid #223043; padding:2px 6px; border-radius:6px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:#a8c0ff}
+    input[type="number"], input[type="range"]{accent-color:var(--acc); background:#0c141e; color:var(--text); border:1px solid #223043; border-radius:10px; padding:8px}
 
-    footer{opacity:.75; font-size:12px}
+    /* Reader viewport */
+    .viewport{position:relative; height:42vh; min-height:260px; border-radius:18px; border:1px solid rgba(255,255,255,.06); background:radial-gradient(ellipse at center, #121b27 0%, #0d141d 62%); overflow:hidden;}
+    .rail{position:absolute; inset:0; display:flex; align-items:center}
+    .stream{position:absolute; left:0; top:50%; transform:translateY(-50%); white-space:nowrap; will-change:transform}
+    .word{display:inline-block; padding:0 .45em; font-weight:800; font-size:clamp(36px, 8.8vw, 96px)}
+    .guide{position:absolute; top:0; bottom:0; left:50%; width:0; border-left:2px dashed #2a3a52; opacity:.6}
+    .progress{height:6px; width:100%; background:#0e1823; border-radius:999px; overflow:hidden; border:1px solid #223043; margin-top:10px}
+    .progress>span{display:block; height:100%; width:0%; background:linear-gradient(90deg, #3a79ff, #2ee7ff)}
+    .hud{position:absolute; bottom:10px; left:12px; right:12px; display:flex; justify-content:space-between; color:var(--muted); font-size:13px}
+    .ghost{opacity:.6}
   </style>
 </head>
 <body>
   <header>
-    <h1>RSVP Voice Reader</h1>
-    <p class="caption">Type or paste any text. Click <strong>Go</strong>. The mic listens while the screen shows the <em>next word to read</em> centered — no eye skimming. When you say the word, it advances automatically. You can also press <kbd>Space</kbd> or <kbd>Right Arrow</kbd>.</p>
+    <h1>RSVP Train — Scroll Reader</h1>
+    <p class="caption">Paste a paragraph, set words‑per‑minute (1–1000), press <b>Start</b>. Words glide <i>right → left</i> like a train. Keep your eyes on the center guideline; each word crosses the line exactly on beat.</p>
   </header>
 
   <section class="card">
-    <div class="row" style="align-items:flex-start">
-      <textarea id="textInput" placeholder="Paste your text here...">I am who I am. This is a demo of a rapid serial visual presentation reader that advances when you speak the word on screen. Try it out!</textarea>
-    </div>
+    <textarea id="textInput">I am who I am. This is a smooth, center‑locked reading train. Your eyes relax at the guide while words pass on rhythm. Adjust WPM to suit your comfort.</textarea>
 
-    <div class="controls" style="margin-top:12px">
-      <button id="goBtn">Go</button>
+    <div class="controls">
+      <button id="startBtn">Start</button>
+      <button id="pauseBtn" class="secondary" disabled>Pause</button>
       <button id="stopBtn" class="secondary" disabled>Stop</button>
-      <span id="micState" class="pill"><span class="dot" id="micDot"></span>Mic idle</span>
-      <label class="switch"><input type="checkbox" id="autoAdvance" checked /> Voice advance</label>
-      <label class="switch"><input type="checkbox" id="strictMatch" /> Strict match</label>
-      <span class="pill">Tips: press <kbd>Space</kbd>/<kbd>→</kbd> to advance • <kbd>←</kbd> to go back</span>
+      <span class="pill">WPM <input id="wpmNum" type="number" min="1" max="1000" value="300" style="width:84px; margin-left:6px"></span>
+      <input id="wpmRange" type="range" min="1" max="1000" value="300" style="flex:1; min-width:160px">
+      <span id="status" class="pill">Idle</span>
     </div>
 
-    <div class="display" id="display">
-      <div>
-        <div id="word" class="word">Ready?</div>
-        <div id="nextWord" class="nextWord"></div>
+    <div class="viewport" id="viewport">
+      <div class="rail">
+        <div class="stream" id="stream"></div>
       </div>
-      <div class="subtle">
-        <div><span id="liveDot" class="dot"></span><span id="status">Not started</span></div>
+      <div class="guide" aria-hidden="true"></div>
+      <div class="hud">
+        <span id="nowWord" class="ghost"></span>
         <div class="progress"><span id="bar"></span></div>
       </div>
     </div>
-
-    <div class="controls" style="margin-top:12px">
-      <label class="switch">WPM: <input type="text" id="wpm" value="0" style="width:72px; margin-left:6px" /> <span class="pill">0 = manual/voice</span></label>
-      <label class="switch">Case/Punct normalize <input type="checkbox" id="normalize" checked /></label>
-    </div>
   </section>
-
-  <footer>Built for you — single-file, no libraries. Works best in Chromium-based browsers with the Web Speech API.</footer>
 
 <script>
 (function(){
   const el = id => document.getElementById(id);
-  const stripPunct = s => s.replace(/[\p{P}\p{S}]/gu, "");
-  const normalizeWord = (w, doNorm=true) => {
-    if(!doNorm) return w.trim();
-    return stripPunct(w).replace(/\s+/g,'').toLowerCase();
-  };
-
-  function renderWord(target){
-    if(!target){ el('word').textContent = ""; return; }
-    const w = String(target);
-    const idx = Math.max(0, Math.min(w.length-1, Math.floor(w.length*0.43)));
-    const left = w.slice(0, idx);
-    const focus = w.slice(idx, idx+1);
-    const right = w.slice(idx+1);
-    el('word').innerHTML = `${escapeHtml(left)}<span class="focus">${escapeHtml(focus)}</span>${escapeHtml(right)}`;
-  }
-  function escapeHtml(s){
-    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
-  }
+  const viewport = el('viewport');
+  const stream = el('stream');
+  const status = el('status');
+  const nowWord = el('nowWord');
+  const bar = el('bar');
 
   let tokens = [];
-  let i = 0;
-  let running = false;
+  let centers = []; // x centers of each word within the stream
+  let rafId = null;
+  let startTs = 0;        // animation start time
+  let paused = false;
+  let pauseOffset = 0;    // ms elapsed when paused
+  const minGapPx = 28;    // padding between words (additional to CSS)
 
   function tokenize(text){
-    const raw = text.match(/\S+|\n/g) || [];
-    const out = [];
-    for(const part of raw){
-      if(part === "\n"){ out.push("\n"); continue; }
-      let p = String(part)
-        .replace(/(—|–)/g, ' $1 ')
-        .replace(/(\.{3,})/g, ' $1 ')
-        .trim()
-        .split(/\s+/);
-      out.push(...p);
-    }
-    return out.filter(Boolean);
+    return (text.match(/\S+/g) || []);
   }
 
-  function show(idx){
-    if(idx < 0 || idx >= tokens.length){ return; }
-    const t = tokens[idx] === "\n" ? "" : tokens[idx];
-    renderWord(t);
-    const nextT = (idx+1 < tokens.length && tokens[idx+1] !== "\n") ? tokens[idx+1] : "";
-    el('nextWord').textContent = nextT ? `Next: ${nextT}` : "";
-    updateBar();
+  function buildStream(){
+    stream.innerHTML = '';
+    centers = [];
+    // Create spans
+    tokens.forEach((w, idx)=>{
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = w;
+      stream.appendChild(span);
+      if(idx < tokens.length - 1){
+        const spacer = document.createElement('span');
+        spacer.textContent = '\u00A0';
+        spacer.style.display = 'inline-block';
+        spacer.style.width = minGapPx + 'px';
+        stream.appendChild(spacer);
+      }
+    });
+    // After layout, compute centers
+    const words = Array.from(stream.querySelectorAll('.word'));
+    centers = words.map(w=>{
+      const r = w.getBoundingClientRect();
+      const s = stream.getBoundingClientRect();
+      const centerX = (r.left - s.left) + r.width/2;
+      return centerX;
+    });
+    // Ensure we have at least two centers to interpolate smoothly
+    if(centers.length < 2){ centers = [0, 1]; }
   }
 
-  function updateBar(){
-    const pct = tokens.length ? Math.min(100, (i / tokens.length) * 100) : 0;
-    el('bar').style.width = pct + '%';
+  function setProgressByTime(ms){
+    const interval = 60000 / currentWpm(); // ms per word
+    const idx = Math.min(tokens.length, Math.max(0, ms / interval));
+    const pct = tokens.length ? Math.min(100, (idx / tokens.length) * 100) : 0;
+    bar.style.width = pct + '%';
+  }
+
+  function currentWpm(){
+    const n = Math.max(1, Math.min(1000, Number(el('wpmNum').value) || 1));
+    return n;
+  }
+
+  function syncWpmInputs(val){
+    el('wpmNum').value = val; el('wpmRange').value = val;
   }
 
   function start(){
+    stop();
     const text = el('textInput').value.trim();
-    if(!text){ alert('Please enter some text first.'); return; }
+    if(!text){ alert('Please paste some text'); return; }
     tokens = tokenize(text);
-    i = 0; running = true;
-    el('goBtn').disabled = true; el('stopBtn').disabled = false;
-    show(i);
+    buildStream();
+    startTs = performance.now();
+    pauseOffset = 0; paused = false;
+    status.textContent = 'Running';
+    el('startBtn').disabled = true; el('pauseBtn').disabled = false; el('stopBtn').disabled = false;
+    tick();
+  }
+
+  function pause(){
+    if(!rafId) return;
+    if(!paused){
+      paused = true; cancelAnimationFrame(rafId); rafId = null;
+      pauseOffset += performance.now() - startTs; // elapsed so far
+      status.textContent = 'Paused';
+    } else {
+      paused = false; startTs = performance.now();
+      status.textContent = 'Running';
+      tick();
+    }
   }
 
   function stop(){
-    running = false; tokens = []; i = 0; renderWord('Ready?'); el('nextWord').textContent=""; updateBar();
-    el('goBtn').disabled = false; el('stopBtn').disabled = true;
+    if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+    status.textContent = 'Idle';
+    el('startBtn').disabled = false; el('pauseBtn').disabled = true; el('stopBtn').disabled = true;
+    stream.style.transform = 'translate3d(0, -50%, 0)';
+    nowWord.textContent = '';
+    bar.style.width = '0%';
   }
 
-  function next(){ if(!running) return; if(i < tokens.length-1){ i++; show(i); } }
-  function prev(){ if(!running) return; if(i > 0){ i--; show(i); } }
+  function findWordAtTime(ms){
+    const interval = 60000 / currentWpm(); // ms per word
+    const k = Math.floor(ms / interval);
+    const f = (ms - k*interval) / interval; // 0..1 between k and k+1
+    return {k, f};
+  }
 
-  el('goBtn').addEventListener('click', start);
+  function desiredCenterAt(ms){
+    const {k, f} = findWordAtTime(ms);
+    const a = centers[Math.min(k, centers.length-1)];
+    const b = centers[Math.min(k+1, centers.length-1)];
+    return a + (b - a) * f;
+  }
+
+  function tick(){
+    const vpRect = viewport.getBoundingClientRect();
+    const centerScreen = vpRect.width/2;
+
+    const now = performance.now();
+    const elapsed = (now - startTs) + pauseOffset; // ms since start
+
+    // Translate so that desired center aligns to viewport center
+    const dest = desiredCenterAt(elapsed);
+    const translateX = centerScreen - dest;
+    stream.style.transform = `translate3d(${translateX}px, -50%, 0)`;
+
+    // Update HUD
+    const {k} = findWordAtTime(elapsed);
+    const idx = Math.min(k, tokens.length-1);
+    nowWord.textContent = tokens[idx] || '';
+    setProgressByTime(elapsed);
+
+    // Stop when last word is past the center by one interval
+    const doneInterval = 60000 / currentWpm();
+    if(idx >= tokens.length-1 && (elapsed > (tokens.length * doneInterval + 200))){
+      stop();
+      return;
+    }
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  // Wire controls
+  el('startBtn').addEventListener('click', start);
+  el('pauseBtn').addEventListener('click', pause);
   el('stopBtn').addEventListener('click', stop);
-
-  document.addEventListener('keydown', (e)=>{
-    if(!running) return;
-    if(e.code === 'Space' || e.key === ' ' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
-    if(e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+  el('wpmNum').addEventListener('change', e=>{
+    let v = Math.max(1, Math.min(1000, Number(e.target.value)||300));
+    syncWpmInputs(v);
+  });
+  el('wpmRange').addEventListener('input', e=>{
+    syncWpmInputs(e.target.value);
   });
 
-  renderWord('Ready?');
+  // Keyboard: space to pause/play; S to start; Esc to stop
+  document.addEventListener('keydown', (e)=>{
+    if(e.code === 'Space'){ e.preventDefault(); if(el('pauseBtn').disabled) return; pause(); }
+    if(e.key.toLowerCase() === 's'){ start(); }
+    if(e.key === 'Escape'){ stop(); }
+  });
 })();
 </script>
 </body>
